@@ -5,6 +5,7 @@ import tempfile
 
 import openfold.data.mmcif_parsing as mmcif_parsing
 from openfold.data.data_pipeline import AlignmentRunner
+from openfold.data.parsers import parse_fasta
 from openfold.np import protein, residue_constants
 
 from utils import add_data_args
@@ -53,7 +54,7 @@ def main(args):
         elif(f.endswith('.fasta')):
             with open(path, 'r') as fp:
                 fasta_str = fp.read()
-            input_seqs, _ = parsers.parse_fasta(fasta_str)
+            input_seqs, _ = parse_fasta(fasta_str)
             if len(input_seqs) != 1: 
                 msg = f'More than one input_sequence found in {f}'
                 if(args.raise_errors):
@@ -78,19 +79,22 @@ def main(args):
         for name, seq in seqs.items():
             alignment_dir = os.path.join(args.output_dir, name)
             if(os.path.isdir(alignment_dir)):
-                logging.info(f'{f} has already been processed. Skipping...')
+                logging.info(f'{name} has already been processed. Skipping...')
                 continue
-
-            os.makedirs(alignment_dir)
+            
+            alignment_temp_dir = os.path.join(args.output_dir, '1a_temp_{}'.format(name))
+            os.makedirs(alignment_temp_dir)
 
             fd, fasta_path = tempfile.mkstemp(suffix=".fasta")
             with os.fdopen(fd, 'w') as fp:
                 fp.write(f'>query\n{seq}')
 
             alignment_runner.run(
-                fasta_path, alignment_dir
+                fasta_path, alignment_temp_dir
             )
 
+
+            os.rename(alignment_temp_dir, alignment_dir)
             os.remove(fasta_path)
 
 
