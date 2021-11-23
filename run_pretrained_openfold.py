@@ -31,13 +31,12 @@ import torch
 from openfold.config import model_config
 from openfold.data import templates, feature_pipeline, data_pipeline
 from openfold.model.model import AlphaFold
-from openfold.model.primitives import Attention, GlobalAttention
+from openfold.model.torchscript import script_preset_
 from openfold.np import residue_constants, protein
 import openfold.np.relax.relax as relax
 from openfold.utils.import_weights import (
     import_jax_weights_,
 )
-from openfold.utils.torchscript_utils import script_submodules_
 from openfold.utils.tensor_utils import (
     tensor_tree_map,
 )
@@ -45,18 +44,14 @@ from openfold.utils.tensor_utils import (
 from scripts.utils import add_data_args
 
 
-def script_primitives_(model):
-    script_submodules_(model, [Attention, GlobalAttention])
-
-
 def main(args):
     config = model_config(args.model_name)
     model = AlphaFold(config)
     model = model.eval()
     import_jax_weights_(model, args.param_path)
-    script_primitives_(model)
+    #script_preset_(model)
     model = model.to(args.model_device)
-    
+ 
     template_featurizer = templates.TemplateHitFeaturizer(
         mmcif_dir=args.template_mmcif_dir,
         max_template_date=args.max_template_date,

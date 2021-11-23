@@ -155,17 +155,16 @@ class InvariantPointAttention(nn.Module):
     """
     Implements Algorithm 22.
     """
-
     def __init__(
         self,
-        c_s,
-        c_z,
-        c_hidden,
-        no_heads,
-        no_qk_points,
-        no_v_points,
-        inf=1e5,
-        eps=1e-8,
+        c_s: int,
+        c_z: int,
+        c_hidden: int,
+        no_heads: int,
+        no_qk_points: int,
+        no_v_points: int,
+        inf: float = 1e5,
+        eps: float = 1e-8,
     ):
         """
         Args:
@@ -291,7 +290,6 @@ class InvariantPointAttention(nn.Module):
         ##########################
         # Compute attention scores
         ##########################
-
         # [*, N_res, N_res, H]
         b = self.linear_b(z)
 
@@ -332,7 +330,6 @@ class InvariantPointAttention(nn.Module):
         ################
         # Compute output
         ################
-
         # [*, N_res, H, C_hidden]
         o = torch.matmul(a, v.transpose(-2, -3)).transpose(-2, -3)
 

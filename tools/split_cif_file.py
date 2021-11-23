@@ -30,14 +30,13 @@ print('file num:', len(path_dict))
 
 save_idx = 0
 for idx, fname in enumerate(path_dict):
-    if idx+1 % args.split_num == 0:
+    if (idx+1) % args.split_num == 0:
         save_idx += 1
     save_dpath = os.path.join(args.out_dir, '{}'.format(save_idx))
     if not os.path.exists(save_dpath):
         os.mkdir(save_dpath)
     save_fpath = os.path.join(save_dpath, fname)
     copyfile(path_dict[fname], save_fpath)
-    break
 
 
 

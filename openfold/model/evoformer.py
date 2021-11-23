@@ -71,11 +71,25 @@ class MSATransition(nn.Module):
         m = self.linear_2(m) * mask
         return m
 
+    @torch.jit.ignore
+    def _chunk(self,
+        m: torch.Tensor,
+        mask: torch.Tensor,
+        chunk_size: int,
+    ) -> torch.Tensor:
+         return chunk_layer(
+             self._transition,
+             {"m": m, "mask": mask},
+             chunk_size=chunk_size,
+             no_batch_dims=len(m.shape[:-2]),
+         )
+
+
     def forward(
         self,
         m: torch.Tensor,
-        mask: torch.Tensor = None,
-        chunk_size: int = None,
+        mask: Optional[torch.Tensor] = None,
+        chunk_size: Optional[int] = None,
     ) -> torch.Tensor:
         """
         Args:
@@ -95,16 +109,10 @@ class MSATransition(nn.Module):
 
         m = self.layer_norm(m)
 
-        inp = {"m": m, "mask": mask}
         if chunk_size is not None:
-            m = chunk_layer(
-                self._transition,
-                inp,
-                chunk_size=chunk_size,
-                no_batch_dims=len(m.shape[:-2]),
-            )
+            m = self._chunk(m, mask, chunk_size)
         else:
-            m = self._transition(**inp)
+            m = self._transition(m, mask)
 
         return m
 
@@ -201,9 +209,11 @@ class EvoformerBlock(nn.Module):
         z: torch.Tensor,
         msa_mask: torch.Tensor,
         pair_mask: torch.Tensor,
-        chunk_size: int,
+        chunk_size: Optional[int] = None,
         _mask_trans: bool = True,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
+        #print(torch.cuda.memory_summary())
+        
         # DeepMind doesn't mask these transitions in the source, so _mask_trans
         # should be disabled to better approximate the exact activations of
         # the original.
@@ -260,6 +270,7 @@ class EvoformerStack(nn.Module):
         blocks_per_ckpt: int,
         inf: float,
         eps: float,
+        clear_cache_between_blocks: bool = False, 
         _is_extra_msa_stack: bool = False,
         **kwargs,
     ):
@@ -294,10 +305,14 @@ class EvoformerStack(nn.Module):
                 Dropout used for pair activations
             blocks_per_ckpt:
                 Number of Evoformer blocks in each activation checkpoint
+            clear_cache_between_blocks:
+                Whether to clear CUDA's GPU memory cache between blocks of the
+                stack. Slows down each block but can reduce fragmentation
         """
         super(EvoformerStack, self).__init__()
 
         self.blocks_per_ckpt = blocks_per_ckpt
+        self.clear_cache_between_blocks = clear_cache_between_blocks
         self._is_extra_msa_stack = _is_extra_msa_stack
 
         self.blocks = nn.ModuleList()
@@ -351,17 +366,26 @@ class EvoformerStack(nn.Module):
             s:
                 [*, N_res, C_s] single embedding (or None if extra MSA stack)
         """
+        blocks = [
+            partial(
+                b,
+                msa_mask=msa_mask,
+                pair_mask=pair_mask,
+                chunk_size=chunk_size,
+                _mask_trans=_mask_trans,
+            )
+            for b in self.blocks
+        ]
+
+        if(self.clear_cache_between_blocks):
+            def block_with_cache_clear(block, *args):
+                torch.cuda.empty_cache()
+                return block(*args)
+
+            blocks = [partial(block_with_cache_clear, b) for b in blocks]
+
         m, z = checkpoint_blocks(
-            blocks=[
-                partial(
-                    b,
-                    msa_mask=msa_mask,
-                    pair_mask=pair_mask,
-                    chunk_size=chunk_size,
-                    _mask_trans=_mask_trans,
-                )
-                for b in self.blocks
-            ],
+            blocks,
             args=(m, z),
             blocks_per_ckpt=self.blocks_per_ckpt if self.training else None,
         )
@@ -398,6 +422,7 @@ class ExtraMSAStack(nn.Module):
         blocks_per_ckpt: int,
         inf: float,
         eps: float,
+        clear_cache_between_blocks: bool = False,
         **kwargs,
     ):
         super(ExtraMSAStack, self).__init__()
@@ -420,6 +445,7 @@ class ExtraMSAStack(nn.Module):
             blocks_per_ckpt=blocks_per_ckpt,
             inf=inf,
             eps=eps,
+            clear_cache_between_blocks=clear_cache_between_blocks,
             _is_extra_msa_stack=True,
         )
 

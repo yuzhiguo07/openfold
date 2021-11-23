@@ -9,6 +9,7 @@ from openfold.data.parsers import parse_fasta
 from openfold.np import protein, residue_constants
 
 from utils import add_data_args
+from datetime import datetime
 
 #python3 scripts/precompute_alignments.py mmcif_dir/ alignment_dir/     data/uniref90/uniref90.fasta     data/mgnify/mgy_clusters_2018_12.fa     data/pdb70/pdb70     data/pdb_mmcif/mmcif_files/     data/uniclust30/uniclust30_2018_08/uniclust30_2018_08     --bfd_database_path data/bfd/bfd_metaclust_clu_complete_id30_c90_final_seq.sorted_opt     --cpus 16  --jackhmmer_binary_path /home/u00u98too4mkqFBu8M357/openfold/lib/conda/envs/openfold_venv/bin/jackhmmer  --hhblits_binary_path /home/u00u98too4mkqFBu8M357/openfold/lib/conda/envs/openfold_venv/bin/hhblits  --hhsearch_binary_path /home/u00u98too4mkqFBu8M357/openfold/lib/conda/envs/openfold_venv/bin/hhsearch  --kalign_binary_path /home/u00u98too4mkqFBu8M357/openfold/lib/conda/envs/openfold_venv/bin/kalign
 
@@ -31,7 +32,10 @@ def main(args):
         no_cpus=args.cpus,
     )
 
-    for f in os.listdir(args.input_dir):
+    finished = 0
+    datetime_start = datetime.now()
+    print('Total num:', len(os.listdir(args.input_dir)))
+    for idx, f in enumerate(os.listdir(args.input_dir)):
         path = os.path.join(args.input_dir, f)
         file_id = os.path.splitext(f)[0]
         seqs = {}
@@ -51,7 +55,7 @@ def main(args):
             for k,v in mmcif.chain_to_seqres.items():
                 chain_id = '_'.join([file_id, k])
                 seqs[chain_id] = v
-        elif(f.endswith('.fasta')):
+        elif(f.endswith('.fasta') or f.endswith('.fa')):
             with open(path, 'r') as fp:
                 fasta_str = fp.read()
             input_seqs, _ = parse_fasta(fasta_str)
@@ -83,7 +87,8 @@ def main(args):
                 continue
             
             alignment_temp_dir = os.path.join(args.output_dir, '1a_temp_{}'.format(name))
-            os.makedirs(alignment_temp_dir)
+            if not os.path.exists(alignment_temp_dir):
+                os.makedirs(alignment_temp_dir)
 
             fd, fasta_path = tempfile.mkstemp(suffix=".fasta")
             with os.fdopen(fd, 'w') as fp:
@@ -96,6 +101,8 @@ def main(args):
 
             os.rename(alignment_temp_dir, alignment_dir)
             os.remove(fasta_path)
+        finished += 1
+        print('------processed {}/{}, cur finished: {},'.format(idx+1, len(os.listdir(args.input_dir)), finished), datetime.now()-datetime_start)
 
 
 if __name__ == "__main__":
