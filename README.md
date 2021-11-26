@@ -71,14 +71,14 @@ you want to use DeepMind's MSA generation pipeline (w/ HMMR & HHblits) or
 MMseqs2 instead. For the former, run:
 
 ```bash
-scripts/download_alphafold_databases.sh data/
+scripts/download_alphafold_dbs.sh data/
 ```
 
 For the latter, run:
 
 ```bash
-scripts/download_mmseqs_databases.sh data/    # downloads .tar files
-scripts/prep_mmseqs_databases.sh data/        # unpacks and preps the databases
+scripts/download_mmseqs_dbs.sh data/    # downloads .tar files
+scripts/prep_mmseqs_dbs.sh data/        # unpacks and preps the databases
 ```
 
 Make sure to run the latter command on the machine that will be used for MSA
